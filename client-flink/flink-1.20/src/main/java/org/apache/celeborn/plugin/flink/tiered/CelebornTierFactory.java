@@ -55,23 +55,23 @@ public class CelebornTierFactory implements TierFactory {
 
   @Override
   public TieredStorageMemorySpec getMasterAgentMemorySpec() {
-    return null;
+    return new TieredStorageMemorySpec(getCelebornTierName(), 0);
   }
 
   @Override
   public TieredStorageMemorySpec getProducerAgentMemorySpec() {
-    return null;
+    return new TieredStorageMemorySpec(getCelebornTierName(), 1);
   }
 
   @Override
   public TieredStorageMemorySpec getConsumerAgentMemorySpec() {
-    return null;
+    return new TieredStorageMemorySpec(getCelebornTierName(), 0);
   }
 
   @Override
   public TierMasterAgent createMasterAgent(
       TieredStorageResourceRegistry tieredStorageResourceRegistry) {
-    return null;
+    return new CelebornTierMasterAgent(conf);
   }
 
   @Override
@@ -106,7 +106,8 @@ public class CelebornTierFactory implements TierFactory {
       List<TieredStorageConsumerSpec> tieredStorageConsumerSpecs,
       List<TierShuffleDescriptor> shuffleDescriptors,
       TieredStorageNettyService nettyService) {
-    return null;
+    return new CelebornTierConsumerAgent(
+        conf, tieredStorageConsumerSpecs, shuffleDescriptors, bufferSizeBytes);
   }
 
   public static String getCelebornTierName() {
