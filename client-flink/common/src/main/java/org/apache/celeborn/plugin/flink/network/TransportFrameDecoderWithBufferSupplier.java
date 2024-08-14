@@ -44,6 +44,7 @@ public class TransportFrameDecoderWithBufferSupplier extends ChannelInboundHandl
   private final ByteBuf msgBuf = Unpooled.buffer(8);
   private Message curMsg = null;
   private int remainingSize = -1;
+  public static int DISABLE_LARGE_BUFFER_SPLIT_SIZE = -1;
 
   private final ConcurrentHashMap<Long, Supplier<ByteBuf>> bufferSuppliers;
 

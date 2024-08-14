@@ -1715,7 +1715,14 @@ public class ShuffleClientImpl extends ShuffleClient {
       throw new CelebornIOException(
           loadFileGroupException(shuffleId, partitionId, (fileGroupTuple._2)));
     } else {
-      return fileGroupTuple._1;
+      Tuple2<ReduceFileGroups, String> fileGroups = loadFileGroupInternal(shuffleId, hasSegments);
+      ReduceFileGroups newGroups = fileGroups._1;
+      if (newGroups == null) {
+        throw new CelebornIOException(
+            loadFileGroupException(shuffleId, partitionId, fileGroups._2));
+      }
+      reduceFileGroupsMap.put(shuffleId, fileGroups);
+      return newGroups;
     }
   }
 
@@ -1750,7 +1757,7 @@ public class ShuffleClientImpl extends ShuffleClient {
     // CelebornShuffleReader, which means `updateFileGroup` is already called and
     // batch open stream has been tried
     if (mapAttempts == null) {
-      ReduceFileGroups fileGroups = updateFileGroup(shuffleId, partitionId);
+      ReduceFileGroups fileGroups = updateFileGroup(shuffleId, partitionId, false);
       mapAttempts = fileGroups.mapAttempts;
       if (fileGroups.partitionGroups.containsKey(partitionId)) {
         locations = new ArrayList(fileGroups.partitionGroups.get(partitionId));
