@@ -213,7 +213,7 @@ public class FlinkShuffleClientImpl extends ShuffleClientImpl {
               Utils.makeReducerKey(shuffleId, partitionId));
         } else {
           // refresh file groups
-          Tuple2<ReduceFileGroups, String> fileGroups = loadFileGroupInternal(shuffleId);
+          Tuple2<ReduceFileGroups, String> fileGroups = loadFileGroupInternal(shuffleId, false);
           ReduceFileGroups newGroups = fileGroups._1;
           if (newGroups == null) {
             throw new CelebornIOException(

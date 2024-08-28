@@ -400,9 +400,10 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
           throw new UnsupportedOperationException(s"Not support $partitionType yet")
       }
 
-    case GetReducerFileGroup(shuffleId: Int) =>
-      logDebug(s"Received GetShuffleFileGroup request for shuffleId $shuffleId.")
-      handleGetReducerFileGroup(context, shuffleId)
+    case GetReducerFileGroup(shuffleId: Int, hasSegments: Boolean) =>
+      logDebug(
+        s"Received GetShuffleFileGroup request for shuffleId $shuffleId, hasSegments $hasSegments")
+      handleGetReducerFileGroup(context, shuffleId, hasSegments)
 
     case pb: PbGetShuffleId =>
       val appShuffleId = pb.getAppShuffleId
@@ -788,8 +789,12 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
 
   private def handleGetReducerFileGroup(
       context: RpcCallContext,
-      shuffleId: Int): Unit = {
-    if (!registeredShuffle.contains(shuffleId)) {
+      shuffleId: Int,
+      hasSegments: Boolean): Unit = {
+    // If hasSegments is set to true, the downstream reduce task may start early than upstream map task, e.g. flink hybrid shuffle.
+    // Under these circumstances, there's a possibility that the shuffle might not yet be registered when the downstream reduce task send GetReduceFileGroup request,
+    // so we shouldn't send a SHUFFLE_NOT_REGISTERED response directly, should enqueue this request to pending list, and response to the downstream reduce task the ReduceFileGroup when the upstream map task register shuffle done
+    if (!registeredShuffle.contains(shuffleId) && !hasSegments) {
       logWarning(s"[handleGetReducerFileGroup] shuffle $shuffleId not registered, maybe no shuffle data within this stage.")
       context.reply(GetReducerFileGroupResponse(
         StatusCode.SHUFFLE_NOT_REGISTERED,

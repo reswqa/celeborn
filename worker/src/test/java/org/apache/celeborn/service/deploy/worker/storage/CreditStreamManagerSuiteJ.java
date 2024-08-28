@@ -21,6 +21,7 @@ import static org.apache.celeborn.common.util.JavaUtils.timeOutOrMeetCondition;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -78,7 +79,8 @@ public class CreditStreamManagerSuiteJ {
     DiskFileInfo diskFileInfo =
         new DiskFileInfo(
             createTemporaryFileWithIndexFile(), new UserIdentifier("default", "default"), conf);
-    MapFileMeta mapFileMeta = new MapFileMeta(1024, 10);
+    MapFileMeta mapFileMeta =
+        new MapFileMeta(1024, 10, false, Collections.emptyMap(), Collections.emptyList());
     diskFileInfo.replaceFileMeta(mapFileMeta);
     Consumer<Long> streamIdConsumer = streamId -> Assert.assertTrue(streamId > 0);
 
