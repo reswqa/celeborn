@@ -49,13 +49,14 @@ public class TransportFrameDecoderWithBufferSupplier extends ChannelInboundHandl
   private final ConcurrentHashMap<Long, Supplier<ByteBuf>> bufferSuppliers;
 
   public TransportFrameDecoderWithBufferSupplier(
-      ConcurrentHashMap<Long, Supplier<ByteBuf>> bufferSuppliers) {
+      ConcurrentHashMap<Long, Supplier<ByteBuf>> bufferSuppliers, int bufferSizeBytes) {
     this.bufferSuppliers = bufferSuppliers;
   }
 
-  private void copyByteBuf(io.netty.buffer.ByteBuf source, ByteBuf target, int targetSize) {
+  private int copyByteBuf(io.netty.buffer.ByteBuf source, ByteBuf target, int targetSize) {
     int bytes = Math.min(source.readableBytes(), targetSize - target.readableBytes());
     target.writeBytes(source.readSlice(bytes).nioBuffer());
+    return bytes;
   }
 
   private void decodeHeader(io.netty.buffer.ByteBuf buf, ChannelHandlerContext ctx) {

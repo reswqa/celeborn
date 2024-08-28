@@ -87,7 +87,10 @@ public class FlinkTransportClientFactory extends TransportClientFactory {
   public TransportClient createClient(String remoteHost, int remotePort)
       throws IOException, InterruptedException {
     return createClient(
-        remoteHost, remotePort, -1, new TransportFrameDecoderWithBufferSupplier(bufferSuppliers));
+        remoteHost,
+        remotePort,
+        -1,
+        new TransportFrameDecoderWithBufferSupplier(bufferSuppliers, bufferSizeBytes));
   }
 
   public void registerSupplier(long streamId, Supplier<ByteBuf> supplier) {
