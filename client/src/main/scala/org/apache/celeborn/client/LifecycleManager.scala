@@ -327,15 +327,17 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
       val mapId = pb.getMapId
       val attemptId = pb.getAttemptId
       val partitionId = pb.getPartitionId
+      val isSegmentGranularityVisible = pb.getIsSegmentGranularityVisible
       logDebug(s"Received Register map partition task request, " +
-        s"$shuffleId, $numMappers, $mapId, $attemptId, $partitionId.")
+        s"$shuffleId, $numMappers, $mapId, $attemptId, $partitionId, $isSegmentGranularityVisible.")
       shufflePartitionType.putIfAbsent(shuffleId, PartitionType.MAP)
       offerAndReserveSlots(
         RegisterCallContext(context, partitionId),
         shuffleId,
         numMappers,
         numMappers,
-        partitionId)
+        partitionId,
+        isSegmentGranularityVisible)
 
     case pb: PbRevive =>
       val shuffleId = pb.getShuffleId
@@ -379,7 +381,8 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
         shuffleId,
         partitionId,
         epoch,
-        oldPartition)
+        oldPartition,
+        isSegmentGranularityVisible = commitManager.isSegmentGranularityVisible(shuffleId))
 
     case MapperEnd(shuffleId, mapId, attemptId, numMappers, partitionId) =>
       logTrace(s"Received MapperEnd TaskEnd request, " +
@@ -498,7 +501,8 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
       shuffleId: Int,
       numMappers: Int,
       numPartitions: Int,
-      partitionId: Int = -1): Unit = {
+      partitionId: Int = -1,
+      isSegmentGranularityVisible: Boolean = false): Unit = {
     val partitionType = getPartitionType(shuffleId)
     registeringShuffleRequest.synchronized {
       if (registeringShuffleRequest.containsKey(shuffleId)) {
@@ -577,7 +581,8 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
           shuffleId,
           partitionId,
           -1,
-          null)
+          null,
+          isSegmentGranularityVisible = commitManager.isSegmentGranularityVisible(shuffleId))
       }
     }
 
@@ -683,7 +688,8 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
         shuffleId,
         candidatesWorkers,
         slots,
-        updateEpoch = false)
+        updateEpoch = false,
+        isSegmentGranularityVisible)
 
     // If reserve slots failed, clear allocated resources, reply ReserveSlotFailed and return.
     if (!reserveSlotsSuccess) {
@@ -705,11 +711,18 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
       }
       shuffleAllocatedWorkers.put(shuffleId, allocatedWorkers)
       registeredShuffle.add(shuffleId)
-      commitManager.registerShuffle(shuffleId, numMappers)
+      commitManager.registerShuffle(
+        shuffleId,
+        numMappers,
+        isSegmentGranularityVisible)
 
       // Fifth, reply the allocated partition location to ShuffleClient.
       logInfo(s"Handle RegisterShuffle Success for $shuffleId.")
       val allPrimaryPartitionLocations = slots.asScala.flatMap(_._2._1.asScala).toArray
+      commitManager.registerShuffle(
+        shuffleId,
+        numMappers,
+        isSegmentGranularityVisible)
       replyRegisterShuffle(RegisterShuffleResponse(
         StatusCode.SUCCESS,
         allPrimaryPartitionLocations))
@@ -763,7 +776,8 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
         partitionIds.get(idx),
         oldEpochs.get(idx),
         oldPartitions.get(idx),
-        Some(causes.get(idx)))
+        Some(causes.get(idx)),
+        commitManager.isSegmentGranularityVisible(shuffleId))
     }
   }
 
@@ -1085,7 +1099,8 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
    */
   private def reserveSlots(
       shuffleId: Int,
-      slots: WorkerResource): util.List[WorkerInfo] = {
+      slots: WorkerResource,
+      isSegmentGranularityVisible: Boolean = false): util.List[WorkerInfo] = {
     val reserveSlotFailedWorkers = new ShuffleFailedWorkers()
     val failureInfos = new util.concurrent.CopyOnWriteArrayList[String]()
     val workerPartitionLocations = slots.asScala.filter(p => !p._2._1.isEmpty || !p._2._2.isEmpty)
@@ -1108,7 +1123,8 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
             conf.pushDataTimeoutMs,
             if (getPartitionType(shuffleId) == PartitionType.MAP)
               conf.clientShuffleMapPartitionSplitEnabled
-            else true))
+            else true,
+            isSegmentGranularityVisible))
         futures.add((future, workerInfo))
       }(ec)
     }
@@ -1305,7 +1321,8 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
       shuffleId: Int,
       candidates: util.HashSet[WorkerInfo],
       slots: WorkerResource,
-      updateEpoch: Boolean = true): Boolean = {
+      updateEpoch: Boolean = true,
+      isSegmentGranularityVisible: Boolean = false): Boolean = {
     var requestSlots = slots
     val reserveSlotsMaxRetries = conf.clientReserveSlotsMaxRetries
     val reserveSlotsRetryWait = conf.clientReserveSlotsRetryWait
@@ -1318,7 +1335,7 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
       }
       // reserve buffers
       logInfo(s"Try reserve slots for $shuffleId for $retryTimes times.")
-      val reserveFailedWorkers = reserveSlots(shuffleId, requestSlots)
+      val reserveFailedWorkers = reserveSlots(shuffleId, requestSlots, isSegmentGranularityVisible)
       if (reserveFailedWorkers.isEmpty) {
         success = true
       } else {
