@@ -101,7 +101,16 @@ public class CelebornTierFactory implements TierFactory {
       ScheduledExecutorService ioExecutor,
       List<TierShuffleDescriptor> shuffleDescriptors,
       int maxRequestedBuffers) {
-    return null;
+    return new CelebornTierProducerAgent(
+        conf,
+        partitionId,
+        numPartitions,
+        numSubpartitions,
+        NUM_BYTES_PER_SEGMENT,
+        bufferSizeBytes,
+        storageMemoryManager,
+        resourceRegistry,
+        shuffleDescriptors);
   }
 
   @Override
