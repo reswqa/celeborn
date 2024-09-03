@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.concurrent.GuardedBy;
 
+import org.apache.celeborn.plugin.flink.buffer.ReceivedNoHeaderBufferPacker;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.io.network.buffer.Buffer;
 import org.apache.flink.runtime.io.network.partition.PartitionNotFoundException;
@@ -65,7 +66,6 @@ import org.apache.celeborn.common.exception.PartitionUnRetryAbleException;
 import org.apache.celeborn.common.identity.UserIdentifier;
 import org.apache.celeborn.plugin.flink.RemoteShuffleResource;
 import org.apache.celeborn.plugin.flink.ShuffleResourceDescriptor;
-import org.apache.celeborn.plugin.flink.buffer.ReceivedNoHeaderBufferPacker;
 import org.apache.celeborn.plugin.flink.buffer.TransferBufferPool;
 import org.apache.celeborn.plugin.flink.readclient.FlinkShuffleClientImpl;
 
