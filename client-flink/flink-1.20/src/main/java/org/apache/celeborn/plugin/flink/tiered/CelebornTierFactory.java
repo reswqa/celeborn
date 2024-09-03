@@ -118,7 +118,7 @@ public class CelebornTierFactory implements TierFactory {
       List<TieredStorageConsumerSpec> tieredStorageConsumerSpecs,
       List<TierShuffleDescriptor> shuffleDescriptors,
       TieredStorageNettyService nettyService) {
-    return null;
+    return new CelebornTierConsumerAgent(conf, tieredStorageConsumerSpecs, shuffleDescriptors);
   }
 
   public static String getCelebornTierName() {
