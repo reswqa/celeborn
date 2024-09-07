@@ -45,25 +45,25 @@ import org.apache.celeborn.service.deploy.worker.memory.BufferRecycler;
 import org.apache.celeborn.service.deploy.worker.memory.MemoryManager;
 
 // this means active data partition
-class MapPartitionData implements MemoryManager.ReadBufferTargetChangeListener {
+public class MapPartitionData implements MemoryManager.ReadBufferTargetChangeListener {
   public static final Logger logger = LoggerFactory.getLogger(MapPartitionData.class);
-  private final DiskFileInfo diskFileInfo;
-  private final MapFileMeta mapFileMeta;
-  private final ExecutorService readExecutor;
-  private final ConcurrentHashMap<Long, MapPartitionDataReader> readers =
+  protected final DiskFileInfo diskFileInfo;
+  protected final MapFileMeta mapFileMeta;
+  protected final ExecutorService readExecutor;
+  protected final ConcurrentHashMap<Long, MapPartitionDataReader> readers =
       JavaUtils.newConcurrentHashMap();
-  private FileChannel dataFileChanel;
-  private FileChannel indexChannel;
-  private long indexSize;
-  private volatile boolean isReleased = false;
-  private final BufferQueue bufferQueue = new BufferQueue();
+  protected FileChannel dataFileChanel;
+  protected FileChannel indexChannel;
+  protected long indexSize;
+  protected volatile boolean isReleased = false;
+  protected final BufferQueue bufferQueue = new BufferQueue();
   private AtomicBoolean bufferQueueInitialized = new AtomicBoolean(false);
   private MemoryManager memoryManager = MemoryManager.instance();
-  private Consumer<Long> recycleStream;
+  protected Consumer<Long> recycleStream;
   private int minReadBuffers;
   private int maxReadBuffers;
   private int minBuffersToTriggerRead;
-  private AtomicBoolean hasReadingTask = new AtomicBoolean(false);
+  protected AtomicBoolean hasReadingTask = new AtomicBoolean(false);
 
   public MapPartitionData(
       int minReadBuffers,
@@ -104,6 +104,8 @@ class MapPartitionData implements MemoryManager.ReadBufferTargetChangeListener {
                             })
                         .build()));
     this.dataFileChanel = FileChannelUtils.openReadableFileChannel(diskFileInfo.getFilePath());
+    // TODO: In the scenarios that downstream tasks before than the upstream tasks, the index file
+    // path may not created now, should lazy open file channel.
     this.indexChannel = FileChannelUtils.openReadableFileChannel(diskFileInfo.getIndexPath());
     this.indexSize = indexChannel.size();
 
@@ -130,11 +132,17 @@ class MapPartitionData implements MemoryManager.ReadBufferTargetChangeListener {
             diskFileInfo,
             streamId,
             channel,
+            readExecutor,
             () -> recycleStream.accept(streamId));
     readers.put(streamId, mapPartitionDataReader);
   }
 
   public void tryRequestBufferOrRead() {
+    // TODO: In flink hybrid shuffle, the applyNewBuffers may fail to request buffers if the file
+    // buffer
+    // size has not been initialized.
+    // In such case, the next read operation should be scheduled to avoid job hang.
+
     if (bufferQueueInitialized.compareAndSet(false, true)) {
       bufferQueue.tryApplyNewBuffers(
           readers.size(),

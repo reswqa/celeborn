@@ -150,6 +150,12 @@ public class BufferQueue {
 
   public void tryApplyNewBuffers(
       int readerSize, int bufferSize, ReadBufferListener readBufferListener) {
+    // TODO: In flink hybrid shuffle, the downstream task may start and register stream early.
+    // In this case, the fileInfo.bufferSize of MapDataPartition is not initialized (default 0), it
+    // will update after when upstream task send "push data handshake".
+    // And when the fileInfo.bufferSize equal to 0, the `applyNewBuffers` method will result in
+    // netty create `EmptyByteBuf` instance and offer to this MapDataPartition.bufferQueue, cause
+    // `read buffer` method failed.
     if (readerSize != 0) {
       synchronized (this) {
         int occupiedSnapshot = numBuffersOccupied.get();
