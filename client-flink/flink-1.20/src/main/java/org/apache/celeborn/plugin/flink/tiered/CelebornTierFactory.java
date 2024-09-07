@@ -118,12 +118,7 @@ public class CelebornTierFactory implements TierFactory {
       List<TieredStorageConsumerSpec> tieredStorageConsumerSpecs,
       List<TierShuffleDescriptor> shuffleDescriptors,
       TieredStorageNettyService nettyService) {
-<<<<<<< HEAD
     return new CelebornTierConsumerAgent(conf, tieredStorageConsumerSpecs, shuffleDescriptors);
-=======
-    return new CelebornTierConsumerAgent(
-            conf, tieredStorageConsumerSpecs, shuffleDescriptors);
->>>>>>> dc88845db ([CELEBORN-1490][CIP-6](8) Introduce tier consumer in celeborn flink client)
   }
 
   public static String getCelebornTierName() {
