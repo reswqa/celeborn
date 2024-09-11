@@ -48,7 +48,6 @@ import org.apache.celeborn.common.CelebornConf;
 import org.apache.celeborn.common.util.JavaUtils;
 import org.apache.celeborn.common.util.ThreadUtils;
 import org.apache.celeborn.plugin.flink.FlinkResultPartitionInfo;
-import org.apache.celeborn.plugin.flink.RemoteShuffleDescriptor;
 import org.apache.celeborn.plugin.flink.RemoteShuffleResource;
 import org.apache.celeborn.plugin.flink.ShuffleResourceDescriptor;
 import org.apache.celeborn.plugin.flink.ShuffleResourceTracker;
@@ -163,9 +162,9 @@ public class CelebornTierMasterAgent implements TierMasterAgent {
 
   @Override
   public void releasePartition(TierShuffleDescriptor shuffleDescriptor) {
-    checkState(shuffleDescriptor instanceof RemoteShuffleDescriptor, "Wrong descriptor type.");
+    checkState(shuffleDescriptor instanceof TierShuffleDescriptorImpl, "Wrong descriptor type.");
     try {
-      RemoteShuffleDescriptor descriptor = (RemoteShuffleDescriptor) shuffleDescriptor;
+      TierShuffleDescriptorImpl descriptor = (TierShuffleDescriptorImpl) shuffleDescriptor;
       RemoteShuffleResource shuffleResource = descriptor.getShuffleResource();
       ShuffleResourceDescriptor resourceDescriptor =
           shuffleResource.getMapPartitionShuffleDescriptor();
