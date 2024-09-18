@@ -1265,7 +1265,7 @@ class PushDataHandler(val workerSource: WorkerSource) extends BaseMessageHandler
                |fileLength:${diskFileInfo.getFileLength},
                |fileName:${diskFileInfo.getFilePath}
                |""".stripMargin)
-          fileWriter.setHasWriteFinished()
+          fileWriter.setWriterClosed()
           return true
         }
       }

@@ -120,8 +120,8 @@ public class MapPartitionDataWriter extends PartitionDataWriter {
   }
 
   @Override
-  public void setHasWriteFinished() {
-    getFileMeta().setHasWriteFinished(true);
+  public void setWriterClosed() {
+    getFileMeta().setIsWriterClosed(true);
   }
 
   @Override

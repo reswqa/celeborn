@@ -77,7 +77,7 @@ public class SegmentMapPartitionFileWriter extends MapPartitionDataWriter {
     super.pushDataHandShake(numSubpartitions, bufferSize);
     subPartitionBufferIndex = new int[numSubpartitions];
     Arrays.fill(subPartitionBufferIndex, 0);
-    getFileMeta().setHasWriteFinished(false);
+    getFileMeta().setIsWriterClosed(false);
     getFileMeta().setSegmentGranularityVisible(true);
   }
 
@@ -149,7 +149,7 @@ public class SegmentMapPartitionFileWriter extends MapPartitionDataWriter {
   public synchronized long close() throws IOException {
     long fileLength = super.close();
     logger.debug("Close {} for file {}", this, getFile());
-    getFileMeta().setHasWriteFinished(true);
+    getFileMeta().setIsWriterClosed(true);
     return fileLength;
   }
 
