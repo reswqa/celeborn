@@ -137,11 +137,6 @@ public class CelebornTierMasterAgent implements TierMasterAgent {
       throw new RuntimeException("Can not find job in master agent, job: " + jobID);
     }
     shuffleIds.add(shuffleResourceDescriptor.getShuffleId());
-    shuffleResourceTracker.addPartitionResource(
-        jobID,
-        shuffleResourceDescriptor.getShuffleId(),
-        shuffleResourceDescriptor.getPartitionId(),
-        resultPartitionID);
 
     RemoteShuffleResource remoteShuffleResource =
         new RemoteShuffleResource(
@@ -149,12 +144,20 @@ public class CelebornTierMasterAgent implements TierMasterAgent {
             lifecycleManager.getPort(),
             lifecycleManagerTimestamp,
             shuffleResourceDescriptor);
-    return new TierShuffleDescriptorImpl(
-        celebornAppId,
+    TierShuffleDescriptorImpl tierShuffleDescriptor =
+        new TierShuffleDescriptorImpl(
+            celebornAppId,
+            jobID,
+            resultPartitionInfo.getShuffleId(),
+            resultPartitionID,
+            remoteShuffleResource);
+    shuffleResourceTracker.addPartitionResource(
         jobID,
-        resultPartitionInfo.getShuffleId(),
+        shuffleResourceDescriptor.getShuffleId(),
+        shuffleResourceDescriptor.getPartitionId(),
         resultPartitionID,
-        remoteShuffleResource);
+        tierShuffleDescriptor.getRemoteShuffleDescriptor());
+    return tierShuffleDescriptor;
   }
 
   @Override

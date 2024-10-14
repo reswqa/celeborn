@@ -564,6 +564,7 @@ public class RemoteShuffleResultPartitionSuiteJ {
         new JobID(bytes).toString(),
         new JobID(bytes),
         new JobID(bytes).toString(),
+        1,
         new ResultPartitionID(),
         new RemoteShuffleResource(
             "1", 2, System.currentTimeMillis(), new ShuffleResourceDescriptor(1, 1, 1, 0)));

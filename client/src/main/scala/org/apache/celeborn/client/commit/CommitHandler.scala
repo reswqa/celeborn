@@ -31,6 +31,9 @@ import scala.concurrent.duration.Duration
 import org.apache.celeborn.client.{ShuffleCommittedInfo, WorkerStatusTracker}
 import org.apache.celeborn.client.CommitManager.CommittedPartitionInfo
 import org.apache.celeborn.client.LifecycleManager.{ShuffleFailedWorkers, ShuffleFileGroups}
+import org.apache.celeborn.client.recover.OperationLogManager
+import org.apache.celeborn.client.recover.OperationLogManager.ID_PERSISTENT_STEP
+import org.apache.celeborn.client.recover.operationlog.{OperationLog, ShuffleEpochOperationLog}
 import org.apache.celeborn.common.CelebornConf
 import org.apache.celeborn.common.internal.Logging
 import org.apache.celeborn.common.meta.{ShufflePartitionLocationInfo, WorkerInfo}
@@ -65,7 +68,8 @@ abstract class CommitHandler(
     conf: CelebornConf,
     committedPartitionInfo: CommittedPartitionInfo,
     workerStatusTracker: WorkerStatusTracker,
-    val sharedRpcPool: ThreadPoolExecutor) extends Logging {
+    val sharedRpcPool: ThreadPoolExecutor,
+    operationLogManager: OperationLogManager) extends Logging {
 
   private val pushReplicateEnabled = conf.clientPushReplicateEnabled
   private val clientRpcCommitFilesAskTimeout = conf.clientRpcCommitFilesAskTimeout
@@ -289,7 +293,7 @@ abstract class CommitHandler(
           param.primaryIds,
           param.replicaIds,
           getMapperAttempts(shuffleId),
-          commitEpoch.incrementAndGet(),
+          getCommitEpoch(),
           mockCommitFilesFailure)
         val future = commitFiles(param.worker, msg)
 
@@ -559,6 +563,33 @@ abstract class CommitHandler(
     val fileGroups = reducerFileGroupsMap.get(shuffleId)
     if (fileGroups != null) {
       fileGroups.remove(partitionId)
+    }
+  }
+
+  def getCommitEpoch(): Long = {
+    if (!operationLogManager.supportRecoverable()) {
+      commitEpoch.getAndIncrement()
+    } else {
+      synchronized {
+        val epoch = commitEpoch.getAndIncrement()
+        if (epoch % ID_PERSISTENT_STEP == 0) {
+          val nextIndex = Math.ceil((epoch + 1.0) / ID_PERSISTENT_STEP).toInt
+          val operationLog =
+            new ShuffleEpochOperationLog(getPartitionType(), nextIndex * ID_PERSISTENT_STEP)
+          operationLogManager.writeOperationLog(operationLog)
+          logInfo(s"GenCommitEpoch, write operation log $operationLog to recoverable store.")
+        }
+        epoch
+      }
+    }
+  }
+
+  def replay(operationLog: OperationLog): Unit = {
+    operationLog.getType match {
+      case OperationLog.Type.SHUFFLE_EPOCH =>
+        val shuffleEpochOperationLog = operationLog.asInstanceOf[ShuffleEpochOperationLog]
+        commitEpoch.set(shuffleEpochOperationLog.getEpoch)
+      case _ =>
     }
   }
 }

@@ -19,6 +19,7 @@ package org.apache.celeborn.plugin.flink;
 
 import java.util.Optional;
 
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.runtime.clusterframework.types.ResourceID;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
@@ -29,18 +30,31 @@ public class RemoteShuffleDescriptor implements ShuffleDescriptor {
   private final JobID jobId;
   // jobId-datasetId
   private final String shuffleId;
+  private final int numberOfSubpartitions;
   private final ResultPartitionID resultPartitionID;
   private final RemoteShuffleResource shuffleResource;
+
+  @VisibleForTesting
+  public static final RemoteShuffleDescriptor EMPTY =
+      new RemoteShuffleDescriptor(
+          "",
+          new JobID(),
+          "",
+          1,
+          new ResultPartitionID(),
+          new RemoteShuffleResource("", 0, 0, new ShuffleResourceDescriptor(0, 0, 0, 0)));
 
   public RemoteShuffleDescriptor(
       String celebornAppId,
       JobID jobId,
       String shuffleId,
+      int numberOfSubpartitions,
       ResultPartitionID resultPartitionID,
       RemoteShuffleResource shuffleResource) {
     this.celebornAppId = celebornAppId;
     this.jobId = jobId;
     this.shuffleId = shuffleId;
+    this.numberOfSubpartitions = numberOfSubpartitions;
     this.resultPartitionID = resultPartitionID;
     this.shuffleResource = shuffleResource;
   }
@@ -60,6 +74,10 @@ public class RemoteShuffleDescriptor implements ShuffleDescriptor {
 
   public String getShuffleId() {
     return shuffleId;
+  }
+
+  public int getNumberOfSubpartitions() {
+    return numberOfSubpartitions;
   }
 
   public RemoteShuffleResource getShuffleResource() {

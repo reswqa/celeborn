@@ -164,7 +164,11 @@ public class RemoteShuffleInputGateDelegation {
               celebornConf,
               new UserIdentifier("default", "default"));
     } catch (DriverChangedException e) {
-      throw new RuntimeException(e.getMessage());
+      // If jobmanager failover the whole job will restart, then partition writer will refresh
+      // FlinkShuffleClientImpl instance.
+      // so InputGate can directly use new FlinkShuffleClientImpl instance.
+      LOG.warn(e.getMessage(), e);
+      this.shuffleClient = FlinkShuffleClientImpl.get();
     }
 
     this.startSubIndex = startSubIndex;

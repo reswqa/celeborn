@@ -24,6 +24,9 @@ import org.roaringbitmap.RoaringBitmap;
 import org.apache.celeborn.common.meta.WorkerInfo;
 
 public class PartitionLocation implements Serializable {
+
+  private static final long serialVersionUID = 8352884430472278056L;
+
   public enum Mode {
     PRIMARY(0),
     REPLICA(1);

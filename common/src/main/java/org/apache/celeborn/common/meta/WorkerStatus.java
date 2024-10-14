@@ -17,11 +17,13 @@
 
 package org.apache.celeborn.common.meta;
 
+import java.io.Serializable;
 import java.util.Objects;
 
 import org.apache.celeborn.common.protocol.PbWorkerStatus;
 
-public class WorkerStatus {
+public class WorkerStatus implements Serializable {
+  private static final long serialVersionUID = -8282145882006816624L;
   private int stateValue;
   private long stateStartTime;
 

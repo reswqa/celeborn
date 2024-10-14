@@ -17,15 +17,24 @@
 
 package org.apache.celeborn.plugin.flink;
 
+import static org.apache.celeborn.client.recover.OperationLogManager.ID_PERSISTENT_STEP;
+import static org.apache.celeborn.client.recover.operationlog.OperationLog.Type.SHUFFLE_TASK_INFO;
+
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.flink.annotation.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.celeborn.client.recover.DummyOperationLogManager;
+import org.apache.celeborn.client.recover.OperationLogManager;
+import org.apache.celeborn.client.recover.Restoreable;
+import org.apache.celeborn.client.recover.operationlog.OperationLog;
 import org.apache.celeborn.common.util.JavaUtils;
+import org.apache.celeborn.plugin.flink.recover.operationlog.ShuffleTaskInfoOperationLog;
 
-public class ShuffleTaskInfo {
+public class ShuffleTaskInfo implements Restoreable {
   private static final Logger LOG = LoggerFactory.getLogger(ShuffleTaskInfo.class);
 
   private int currentShuffleIndex = 0;
@@ -42,6 +51,17 @@ public class ShuffleTaskInfo {
   private ConcurrentHashMap<Integer, AtomicInteger> shuffleIdPartitionIdIndex =
       JavaUtils.newConcurrentHashMap();
 
+  private OperationLogManager operationLogManager;
+
+  public ShuffleTaskInfo(OperationLogManager operationLogManager) {
+    this.operationLogManager = operationLogManager;
+  }
+
+  @VisibleForTesting
+  public ShuffleTaskInfo() {
+    this(new DummyOperationLogManager());
+  }
+
   public int getShuffleId(String taskShuffleId) {
     synchronized (taskShuffleIdToShuffleId) {
       if (taskShuffleIdToShuffleId.containsKey(taskShuffleId)) {
@@ -53,6 +73,9 @@ public class ShuffleTaskInfo {
         shuffleIdPartitionIdIndex.put(currentShuffleIndex, new AtomicInteger(0));
         int tempShuffleIndex = currentShuffleIndex;
         currentShuffleIndex = currentShuffleIndex + 1;
+        operationLogManager.writeOperationLog(
+            new ShuffleTaskInfoOperationLog(
+                taskShuffleId, tempShuffleIndex, currentShuffleIndex, ID_PERSISTENT_STEP));
         return tempShuffleIndex;
       }
     }
@@ -67,7 +90,26 @@ public class ShuffleTaskInfo {
   }
 
   public int genPartitionId(int shuffleId) {
-    return shuffleIdPartitionIdIndex.get(shuffleId).getAndIncrement();
+    if (!operationLogManager.supportRecoverable()) {
+      return shuffleIdPartitionIdIndex.get(shuffleId).getAndIncrement();
+    } else {
+      synchronized (shuffleIdPartitionIdIndex.get(shuffleId)) {
+        int currentPartitionId = shuffleIdPartitionIdIndex.get(shuffleId).getAndIncrement();
+        if (currentPartitionId > 0 && currentPartitionId % ID_PERSISTENT_STEP == 0) {
+          int nextIndex = (int) Math.ceil((currentPartitionId + 1.0) / ID_PERSISTENT_STEP);
+          ShuffleTaskInfoOperationLog operationLog =
+              new ShuffleTaskInfoOperationLog(
+                  shuffleIdToTaskShuffleId.get(shuffleId),
+                  shuffleId,
+                  currentShuffleIndex,
+                  nextIndex * ID_PERSISTENT_STEP);
+          operationLogManager.writeOperationLog(operationLog);
+          LOG.info("GenPartitionId, write operation log {} to recoverable store.", operationLog);
+        }
+
+        return currentPartitionId;
+      }
+    }
   }
 
   public void removeExpiredShuffle(int shuffleId) {
@@ -94,5 +136,26 @@ public class ShuffleTaskInfo {
         attemptId,
         partitionId);
     return new ShuffleResourceDescriptor(shuffleId, mapId, attemptId, partitionId);
+  }
+
+  @Override
+  public void replay(OperationLog operationLog) {
+    if (operationLog.getType() == SHUFFLE_TASK_INFO) {
+      ShuffleTaskInfoOperationLog shuffleTaskInfoOperationLog =
+          (ShuffleTaskInfoOperationLog) operationLog;
+      taskShuffleIdToShuffleId.put(
+          shuffleTaskInfoOperationLog.getTaskShuffleId(),
+          shuffleTaskInfoOperationLog.getTaskShuffleIdIndex());
+      shuffleIdToTaskShuffleId.put(
+          shuffleTaskInfoOperationLog.getTaskShuffleIdIndex(),
+          shuffleTaskInfoOperationLog.getTaskShuffleId());
+      shuffleIdMapAttemptIdIndex.put(
+          shuffleTaskInfoOperationLog.getTaskShuffleIdIndex(), JavaUtils.newConcurrentHashMap());
+      shuffleIdPartitionIdIndex.put(
+          shuffleTaskInfoOperationLog.getTaskShuffleIdIndex(),
+          new AtomicInteger(shuffleTaskInfoOperationLog.getCurrentPartitionIndex()));
+      currentShuffleIndex =
+          Math.max(shuffleTaskInfoOperationLog.getNextShuffleIdIndex(), currentShuffleIndex);
+    }
   }
 }

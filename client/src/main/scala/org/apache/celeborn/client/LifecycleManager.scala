@@ -39,6 +39,8 @@ import com.google.common.cache.{Cache, CacheBuilder}
 
 import org.apache.celeborn.client.LifecycleManager.{ShuffleAllocatedWorkers, ShuffleFailedWorkers}
 import org.apache.celeborn.client.listener.WorkerStatusListener
+import org.apache.celeborn.client.recover.{DummyOperationLogManager, OperationLogManager, Restoreable}
+import org.apache.celeborn.client.recover.operationlog.{ApplyResourceOperationLog, OperationLog, ReleaseResourceOperationLog}
 import org.apache.celeborn.common.CelebornConf
 import org.apache.celeborn.common.client.MasterClient
 import org.apache.celeborn.common.identity.{IdentityProvider, UserIdentifier}
@@ -67,8 +69,15 @@ object LifecycleManager {
   type ShuffleFailedWorkers = ConcurrentHashMap[WorkerInfo, (StatusCode, Long)]
 }
 
-class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends RpcEndpoint
-  with Logging {
+class LifecycleManager(
+    val appUniqueId: String,
+    val conf: CelebornConf,
+    val operationLogManager: OperationLogManager) extends RpcEndpoint
+  with Restoreable with Logging {
+
+  def this(appId: String, conf: CelebornConf) {
+    this(appId, conf, new DummyOperationLogManager())
+  }
 
   private val lifecycleHost = Utils.localHostName(conf)
 
@@ -219,7 +228,7 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
   // a reference to `masterClient`, there may be cases where `masterClient` is null when
   // `masterClient` is called. Therefore, it's necessary to uniformly execute the initialization
   // method at the end of the construction of the class to perform the initialization operations.
-  private def initialize(): Unit = {
+  def initialize(): Unit = {
     // noinspection ConvertExpressionToSAM
     commitManager.start()
     heartbeater.start()
@@ -448,16 +457,19 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
   }
 
   def setupEndpoints(
-      slots: WorkerResource,
-      shuffleId: Int,
-      connectFailedWorkers: ShuffleFailedWorkers): Unit = {
+      workerInfos: util.Set[WorkerInfo],
+      shuffleId: Int): util.HashSet[WorkerInfo] = {
     val futures = new util.LinkedList[(Future[RpcEndpointRef], WorkerInfo)]()
-    slots.asScala foreach { case (workerInfo, _) =>
+
+    val candidatesWorkers = new util.HashSet(workerInfos)
+    candidatesWorkers.asScala foreach { case (workerInfo) =>
       val future = workerRpcEnvInUse.asyncSetupEndpointRefByAddr(RpcEndpointAddress(
         RpcAddress.apply(workerInfo.host, workerInfo.rpcPort),
         WORKER_EP))
       futures.add((future, workerInfo))
     }
+
+    val connectFailedWorkers = new ShuffleFailedWorkers()
 
     var timeout = conf.rpcAskTimeout.duration.toMillis
     val delta = 50
@@ -496,6 +508,14 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
           (StatusCode.WORKER_UNKNOWN, System.currentTimeMillis()))
       }
     }
+
+    candidatesWorkers.removeAll(connectFailedWorkers.asScala.keys.toList.asJava)
+    workerStatusTracker.recordWorkerFailure(connectFailedWorkers)
+    // If newly allocated from primary and can setup endpoint success, LifecycleManager should remove worker from
+    // the excluded worker list to improve the accuracy of the list.
+    workerStatusTracker.removeFromExcludedWorkers(candidatesWorkers)
+
+    candidatesWorkers
   }
 
   private def offerAndReserveSlots(
@@ -671,17 +691,9 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
     // Reserve slots for each PartitionLocation. When response status is SUCCESS, WorkerResource
     // won't be empty since primary will reply SlotNotAvailable status when reserved slots is empty.
     val slots = res.workerResource
-    val candidatesWorkers = new util.HashSet(slots.keySet())
-    val connectFailedWorkers = new ShuffleFailedWorkers()
 
     // Second, for each worker, try to initialize the endpoint.
-    setupEndpoints(slots, shuffleId, connectFailedWorkers)
-
-    candidatesWorkers.removeAll(connectFailedWorkers.asScala.keys.toList.asJava)
-    workerStatusTracker.recordWorkerFailure(connectFailedWorkers)
-    // If newly allocated from primary and can setup endpoint success, LifecycleManager should remove worker from
-    // the excluded worker list to improve the accuracy of the list.
-    workerStatusTracker.removeFromExcludedWorkers(candidatesWorkers)
+    val candidatesWorkers = setupEndpoints(slots.keySet(), shuffleId)
 
     // Third, for each slot, LifecycleManager should ask Worker to reserve the slot
     // and prepare the pushing data env.
@@ -717,6 +729,12 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
         shuffleId,
         numMappers,
         isSegmentGranularityVisible)
+      operationLogManager.writeOperationLog(new ApplyResourceOperationLog(
+        shuffleId,
+        isSegmentGranularityVisible,
+        shufflePartitionType.get(shuffleId),
+        numMappers,
+        allocatedWorkers))
 
       // Fifth, reply the allocated partition location to ShuffleClient.
       logInfo(s"Handle RegisterShuffle Success for $shuffleId.")
@@ -1088,7 +1106,7 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
    * ========================================================== */
 
   /**
-   * After getting WorkerResource, LifecycleManger needs to ask each Worker to
+   * After getting WorkerResource, LifecycleManager needs to ask each Worker to
    * reserve corresponding slot and prepare push data env in Worker side.
    *
    * @param shuffleId     Application shuffle id
@@ -1742,6 +1760,7 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
     }
 
     releasePartitionManager.releasePartition(shuffleId, partitionId)
+    operationLogManager.writeOperationLog(new ReleaseResourceOperationLog(shuffleId, partitionId))
   }
 
   def getAllocatedWorkers(): Set[WorkerInfo] = {
@@ -1779,5 +1798,30 @@ class LifecycleManager(val appUniqueId: String, val conf: CelebornConf) extends 
     val secretBytes = new Array[Byte](bits / JByte.SIZE)
     rnd.nextBytes(secretBytes)
     JavaUtils.bytesToString(ByteBuffer.wrap(secretBytes))
+  }
+
+  override def replay(operationLog: OperationLog): Unit = {
+    operationLog.getType match {
+      case OperationLog.Type.APPLY_RESOURCE =>
+        val applyResourceOperationLog = operationLog.asInstanceOf[ApplyResourceOperationLog]
+        val shuffleId = applyResourceOperationLog.getShuffleId
+        val isSegmentGranularityVisible = applyResourceOperationLog.isSegmentGranularityVisible
+        val slots = applyResourceOperationLog.getShufflePartitionLocationInfo
+        setupEndpoints(slots.keySet(), shuffleId)
+        shuffleAllocatedWorkers.put(
+          shuffleId,
+          applyResourceOperationLog.getShufflePartitionLocationInfo)
+        shufflePartitionType.put(shuffleId, applyResourceOperationLog.getPartitionType)
+        commitManager.registerShuffle(
+          shuffleId,
+          applyResourceOperationLog.getNumMappers,
+          isSegmentGranularityVisible)
+        registeredShuffle.add(shuffleId)
+      case OperationLog.Type.COMMIT_RESOURCE =>
+        commitManager.replay(operationLog)
+      case OperationLog.Type.SHUFFLE_EPOCH =>
+        commitManager.replay(operationLog)
+      case _ =>
+    }
   }
 }
