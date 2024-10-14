@@ -37,9 +37,11 @@ public class TierShuffleDescriptorImpl implements TierShuffleDescriptor {
       String shuffleId,
       ResultPartitionID resultPartitionID,
       RemoteShuffleResource shuffleResource) {
+    // -1 is a placeholder for the number of subpartitions, because it is not used in Hybrid Shuffle
+    // now.
     this.remoteShuffleDescriptor =
         new RemoteShuffleDescriptor(
-            celebornAppId, jobId, shuffleId, resultPartitionID, shuffleResource);
+            celebornAppId, jobId, shuffleId, -1, resultPartitionID, shuffleResource);
   }
 
   public ResultPartitionID getResultPartitionID() {
@@ -60,6 +62,10 @@ public class TierShuffleDescriptorImpl implements TierShuffleDescriptor {
 
   public RemoteShuffleResource getShuffleResource() {
     return remoteShuffleDescriptor.getShuffleResource();
+  }
+
+  public RemoteShuffleDescriptor getRemoteShuffleDescriptor() {
+    return remoteShuffleDescriptor;
   }
 
   @Override

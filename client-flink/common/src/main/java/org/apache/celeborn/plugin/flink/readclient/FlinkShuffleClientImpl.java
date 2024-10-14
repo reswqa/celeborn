@@ -77,6 +77,9 @@ public class FlinkShuffleClientImpl extends ShuffleClientImpl {
   private ReadClientHandler readClientHandler = new ReadClientHandler();
   private ConcurrentHashMap<String, TransportClient> currentClient =
       JavaUtils.newConcurrentHashMap();
+  private String appUniqueId;
+  private String driverHost;
+  private int driverPort;
   private long driverTimestamp;
 
   private final TransportContext context;
@@ -106,13 +109,30 @@ public class FlinkShuffleClientImpl extends ShuffleClientImpl {
       }
     }
 
-    if (driverTimestamp < _instance.driverTimestamp) {
-      String format = "Driver reinitialized or changed driverHost-port-driverTimestamp to %s-%s-%s";
-      String message = String.format(format, driverHost, port, driverTimestamp);
+    FlinkShuffleClientImpl client = _instance;
+    if (driverTimestamp < client.driverTimestamp) {
+      String format =
+          "Driver reinitialized or changed driverHost-port-driverTimestamp from %s-%s-%s to %s-%s-%s";
+      String message =
+          String.format(
+              format,
+              driverHost,
+              port,
+              driverTimestamp,
+              client.driverHost,
+              client.driverPort,
+              client.driverTimestamp);
       logger.warn(message);
       throw new DriverChangedException(message);
     }
 
+    return client;
+  }
+
+  public static FlinkShuffleClientImpl get() {
+    if (_instance == null) {
+      throw new RuntimeException("Try to get an empty flink shuffle client");
+    }
     return _instance;
   }
 
@@ -142,6 +162,9 @@ public class FlinkShuffleClientImpl extends ShuffleClientImpl {
         new TransportContext(
             dataTransportConf, readClientHandler, conf.clientCloseIdleConnections());
     this.setupLifecycleManagerRef(driverHost, port);
+    this.appUniqueId = appUniqueId;
+    this.driverHost = driverHost;
+    this.driverPort = port;
     this.driverTimestamp = driverTimestamp;
   }
 
@@ -662,5 +685,21 @@ public class FlinkShuffleClientImpl extends ShuffleClientImpl {
   public TransportClientFactory getDataClientFactory() {
     initializeTransportClientFactory();
     return flinkTransportClientFactory;
+  }
+
+  @Override
+  public String toString() {
+    return "FlinkShuffleClientImpl{"
+        + "appUniqueId='"
+        + appUniqueId
+        + '\''
+        + ", driverHost='"
+        + driverHost
+        + '\''
+        + ", driverPort="
+        + driverPort
+        + ", driverTimestamp="
+        + driverTimestamp
+        + '}';
   }
 }

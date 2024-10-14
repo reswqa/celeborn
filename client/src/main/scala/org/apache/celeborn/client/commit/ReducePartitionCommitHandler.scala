@@ -29,6 +29,7 @@ import com.google.common.cache.{Cache, CacheBuilder}
 import org.apache.celeborn.client.{ShuffleCommittedInfo, WorkerStatusTracker}
 import org.apache.celeborn.client.CommitManager.CommittedPartitionInfo
 import org.apache.celeborn.client.LifecycleManager.{ShuffleAllocatedWorkers, ShuffleFailedWorkers}
+import org.apache.celeborn.client.recover.RecoverableStore
 import org.apache.celeborn.common.CelebornConf
 import org.apache.celeborn.common.internal.Logging
 import org.apache.celeborn.common.meta.{ShufflePartitionLocationInfo, WorkerInfo}
@@ -52,13 +53,15 @@ class ReducePartitionCommitHandler(
     shuffleAllocatedWorkers: ShuffleAllocatedWorkers,
     committedPartitionInfo: CommittedPartitionInfo,
     workerStatusTracker: WorkerStatusTracker,
-    sharedRpcPool: ThreadPoolExecutor)
+    sharedRpcPool: ThreadPoolExecutor,
+    recoverableStore: RecoverableStore)
   extends CommitHandler(
     appUniqueId,
     conf,
     committedPartitionInfo,
     workerStatusTracker,
-    sharedRpcPool)
+    sharedRpcPool,
+    recoverableStore)
   with Logging {
 
   private val getReducerFileGroupRequest =

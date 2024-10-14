@@ -1485,6 +1485,9 @@ class CelebornConf(loadDefaults: Boolean) extends Cloneable with Logging with Se
   def secretRedactionPattern = get(SECRET_REDACTION_PATTERN)
 
   def containerInfoProviderClass = get(CONTAINER_INFO_PROVIDER)
+
+  def recoveryFlinkJobInSessionModeEnabled: Boolean =
+    get(RECOVERY_FLINK_JOB_IN_SESSION_MODE_ENABLED)
 }
 
 object CelebornConf extends Logging {
@@ -5878,4 +5881,12 @@ object CelebornConf extends Logging {
         "`prod,high-io` filters workers that have both the `prod` and `high-io` tags.")
       .stringConf
       .createWithDefault("")
+
+  val RECOVERY_FLINK_JOB_IN_SESSION_MODE_ENABLED: ConfigEntry[Boolean] =
+    buildConf("celeborn.client.flink.job-recovery.session.enabled")
+      .categories("client")
+      .version("0.6.0")
+      .doc("When true, Celeborn will allow the Flink batch job recovery in session mode, it must used in conjunction with the Flink configuration \"execution.batch.job-recovery.enabled\". Please note that Celeborn cannot distinguish between multiple jobs within the same session, which may result in an excessive amount of logs being written to memory and storage, potentially leading to high gc overload.")
+      .booleanConf
+      .createWithDefault(false)
 }

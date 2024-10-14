@@ -28,6 +28,8 @@ import scala.collection.mutable
 import org.apache.celeborn.client.{ShuffleCommittedInfo, WorkerStatusTracker}
 import org.apache.celeborn.client.CommitManager.CommittedPartitionInfo
 import org.apache.celeborn.client.LifecycleManager.{ShuffleAllocatedWorkers, ShuffleFailedWorkers}
+import org.apache.celeborn.client.recover.RecoverableStore
+import org.apache.celeborn.client.recover.operationlog.{CommitOperationLog, OperationLog}
 import org.apache.celeborn.common.CelebornConf
 import org.apache.celeborn.common.internal.Logging
 import org.apache.celeborn.common.meta.{ShufflePartitionLocationInfo, WorkerInfo}
@@ -53,8 +55,15 @@ class MapPartitionCommitHandler(
     shuffleAllocatedWorkers: ShuffleAllocatedWorkers,
     committedPartitionInfo: CommittedPartitionInfo,
     workerStatusTracker: WorkerStatusTracker,
-    sharedRpcPool: ThreadPoolExecutor)
-  extends CommitHandler(appId, conf, committedPartitionInfo, workerStatusTracker, sharedRpcPool)
+    sharedRpcPool: ThreadPoolExecutor,
+    recoverableStore: RecoverableStore)
+  extends CommitHandler(
+    appId,
+    conf,
+    committedPartitionInfo,
+    workerStatusTracker,
+    sharedRpcPool,
+    recoverableStore)
   with Logging {
 
   private val shuffleSucceedPartitionIds = JavaUtils.newConcurrentHashMap[Int, util.Set[Integer]]()
@@ -211,6 +220,10 @@ class MapPartitionCommitHandler(
           shuffleId,
           (k: Int) => ConcurrentHashMap.newKeySet[Integer]())
       resultPartitions.add(partitionId)
+      recoverableStore.writeOperation(new CommitOperationLog(
+        shuffleId,
+        partitionId,
+        reducerFileGroupsMap.get(shuffleId).get(partitionId)))
     }
 
     (dataCommitSuccess, false)
@@ -252,5 +265,21 @@ class MapPartitionCommitHandler(
     }
 
     super.releasePartitionResource(shuffleId, partitionId)
+  }
+
+  override def replay(operationLog: OperationLog): Unit = {
+    operationLog.getType match {
+      case OperationLog.Type.COMMIT_RESOURCE =>
+        val committedOperationLog = operationLog.asInstanceOf[CommitOperationLog]
+        val resultPartitions =
+          shuffleSucceedPartitionIds.computeIfAbsent(
+            committedOperationLog.getShuffleId,
+            (k: Int) => ConcurrentHashMap.newKeySet[Integer]())
+        resultPartitions.add(committedOperationLog.getPartitionId)
+        reducerFileGroupsMap.get(committedOperationLog.getShuffleId).put(
+          committedOperationLog.getPartitionId,
+          committedOperationLog.getPartitionLocations)
+      case _ => super.replay(operationLog)
+    }
   }
 }

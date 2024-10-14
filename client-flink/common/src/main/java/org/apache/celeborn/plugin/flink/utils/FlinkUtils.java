@@ -23,6 +23,7 @@ import java.util.Set;
 import com.google.common.collect.ImmutableSet;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.DeploymentOptions;
 import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 
@@ -71,5 +72,15 @@ public class FlinkUtils {
 
   public static String toAttemptId(ExecutionAttemptID attemptID) {
     return attemptID.toString();
+  }
+
+  public static boolean jobRecoveryEnabled(Configuration flinkConf) {
+    return Boolean.parseBoolean(
+        flinkConf.getString("execution.batch.job-recovery.enabled", "false"));
+  }
+
+  public static boolean isSessionMode(Configuration flinkConf) {
+    String deployTarget = flinkConf.get(DeploymentOptions.TARGET);
+    return deployTarget != null && deployTarget.contains("session");
   }
 }

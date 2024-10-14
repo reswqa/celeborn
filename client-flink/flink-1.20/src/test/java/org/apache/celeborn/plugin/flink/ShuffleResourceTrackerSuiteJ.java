@@ -69,14 +69,19 @@ public class ShuffleResourceTrackerSuiteJ {
 
     JobID jobID1 = new JobID();
     shuffleResourceTracker.registerJob(createJobShuffleContext(jobID1));
-    shuffleResourceTracker.addPartitionResource(jobID1, 1, 1, new ResultPartitionID());
-    shuffleResourceTracker.addPartitionResource(jobID1, 1, 2, new ResultPartitionID());
-    shuffleResourceTracker.addPartitionResource(jobID1, 1, 3, new ResultPartitionID());
-    shuffleResourceTracker.addPartitionResource(jobID1, 2, 3, new ResultPartitionID());
+    shuffleResourceTracker.addPartitionResource(
+        jobID1, 1, 1, new ResultPartitionID(), RemoteShuffleDescriptor.EMPTY);
+    shuffleResourceTracker.addPartitionResource(
+        jobID1, 1, 2, new ResultPartitionID(), RemoteShuffleDescriptor.EMPTY);
+    shuffleResourceTracker.addPartitionResource(
+        jobID1, 1, 3, new ResultPartitionID(), RemoteShuffleDescriptor.EMPTY);
+    shuffleResourceTracker.addPartitionResource(
+        jobID1, 2, 3, new ResultPartitionID(), RemoteShuffleDescriptor.EMPTY);
 
     JobID jobID2 = new JobID();
     shuffleResourceTracker.registerJob(createJobShuffleContext(jobID2));
-    shuffleResourceTracker.addPartitionResource(jobID2, 3, 1, new ResultPartitionID());
+    shuffleResourceTracker.addPartitionResource(
+        jobID2, 3, 1, new ResultPartitionID(), RemoteShuffleDescriptor.EMPTY);
 
     List<WorkerInfo> workerInfoList = new ArrayList<>();
     workerInfoList.add(workerInfo);
