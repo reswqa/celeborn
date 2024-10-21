@@ -29,7 +29,6 @@ public class RemoteShuffleServiceFactory extends AbstractRemoteShuffleServiceFac
     implements ShuffleServiceFactory<
         RemoteShuffleDescriptor, ResultPartitionWriter, IndexedInputGate> {
 
-  @Override
   public ShuffleMaster<RemoteShuffleDescriptor> createShuffleMaster(
       ShuffleMasterContext shuffleMasterContext) {
     return new RemoteShuffleMaster(shuffleMasterContext, new SimpleResultPartitionAdapter());

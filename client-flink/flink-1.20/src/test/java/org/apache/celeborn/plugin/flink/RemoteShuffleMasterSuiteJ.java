@@ -62,7 +62,7 @@ import org.apache.celeborn.plugin.flink.utils.FlinkUtils;
 public class RemoteShuffleMasterSuiteJ {
 
   private static final Logger LOG = LoggerFactory.getLogger(RemoteShuffleMasterSuiteJ.class);
-  private RemoteShuffleMaster remoteShuffleMaster;
+  private RemoteShuffleMasterDelegation remoteShuffleMaster;
   private Configuration configuration;
 
   @Before
@@ -256,9 +256,9 @@ public class RemoteShuffleMasterSuiteJ {
     }
   }
 
-  public RemoteShuffleMaster createShuffleMaster(Configuration configuration) {
+  public RemoteShuffleMasterDelegation createShuffleMaster(Configuration configuration) {
     remoteShuffleMaster =
-        new RemoteShuffleMaster(
+        new RemoteShuffleMasterDelegation(
             new ShuffleMasterContext() {
               @Override
               public Configuration getConfiguration() {

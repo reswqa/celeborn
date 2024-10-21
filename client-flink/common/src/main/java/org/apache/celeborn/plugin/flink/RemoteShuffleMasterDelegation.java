@@ -34,7 +34,6 @@ import org.apache.flink.runtime.shuffle.JobShuffleContext;
 import org.apache.flink.runtime.shuffle.PartitionDescriptor;
 import org.apache.flink.runtime.shuffle.ProducerDescriptor;
 import org.apache.flink.runtime.shuffle.ShuffleDescriptor;
-import org.apache.flink.runtime.shuffle.ShuffleMaster;
 import org.apache.flink.runtime.shuffle.ShuffleMasterContext;
 import org.apache.flink.runtime.shuffle.TaskInputsOutputsDescriptor;
 import org.apache.flink.util.ExecutorUtils;
@@ -47,8 +46,8 @@ import org.apache.celeborn.common.util.JavaUtils;
 import org.apache.celeborn.common.util.ThreadUtils;
 import org.apache.celeborn.plugin.flink.utils.FlinkUtils;
 
-public class RemoteShuffleMaster implements ShuffleMaster<RemoteShuffleDescriptor> {
-  private static final Logger LOG = LoggerFactory.getLogger(RemoteShuffleMaster.class);
+public class RemoteShuffleMasterDelegation {
+  private static final Logger LOG = LoggerFactory.getLogger(RemoteShuffleMasterDelegation.class);
   private final ShuffleMasterContext shuffleMasterContext;
   // Flink JobId -> Celeborn register shuffleIds
   private final Map<JobID, Set<Integer>> jobShuffleIds = JavaUtils.newConcurrentHashMap();
@@ -62,7 +61,7 @@ public class RemoteShuffleMaster implements ShuffleMaster<RemoteShuffleDescripto
   private final ResultPartitionAdapter resultPartitionDelegation;
   private final long lifecycleManagerTimestamp;
 
-  public RemoteShuffleMaster(
+  public RemoteShuffleMasterDelegation(
       ShuffleMasterContext shuffleMasterContext, ResultPartitionAdapter resultPartitionDelegation) {
     checkShuffleConfig(shuffleMasterContext.getConfiguration());
     this.shuffleMasterContext = shuffleMasterContext;
@@ -70,11 +69,10 @@ public class RemoteShuffleMaster implements ShuffleMaster<RemoteShuffleDescripto
     this.lifecycleManagerTimestamp = System.currentTimeMillis();
   }
 
-  @Override
   public void registerJob(JobShuffleContext context) {
     JobID jobID = context.getJobId();
     if (lifecycleManager == null) {
-      synchronized (RemoteShuffleMaster.class) {
+      synchronized (RemoteShuffleMasterDelegation.class) {
         if (lifecycleManager == null) {
           celebornAppId = FlinkUtils.toCelebornAppId(lifecycleManagerTimestamp, jobID);
           LOG.info("CelebornAppId: {}", celebornAppId);
@@ -101,7 +99,6 @@ public class RemoteShuffleMaster implements ShuffleMaster<RemoteShuffleDescripto
     }
   }
 
-  @Override
   public void unregisterJob(JobID jobID) {
     LOG.info("Unregister job: {}.", jobID);
     Set<Integer> shuffleIds = jobShuffleIds.remove(jobID);
@@ -121,7 +118,6 @@ public class RemoteShuffleMaster implements ShuffleMaster<RemoteShuffleDescripto
     }
   }
 
-  @Override
   public CompletableFuture<RemoteShuffleDescriptor> registerPartitionWithProducer(
       JobID jobID, PartitionDescriptor partitionDescriptor, ProducerDescriptor producerDescriptor) {
     return CompletableFuture.supplyAsync(
@@ -166,7 +162,6 @@ public class RemoteShuffleMaster implements ShuffleMaster<RemoteShuffleDescripto
         executor);
   }
 
-  @Override
   public void releasePartitionExternally(ShuffleDescriptor shuffleDescriptor) {
     executor.execute(
         () -> {
@@ -198,7 +193,6 @@ public class RemoteShuffleMaster implements ShuffleMaster<RemoteShuffleDescripto
         });
   }
 
-  @Override
   public MemorySize computeShuffleMemorySizeForTask(
       TaskInputsOutputsDescriptor taskInputsOutputsDescriptor) {
     for (ResultPartitionType partitionType :
@@ -228,7 +222,6 @@ public class RemoteShuffleMaster implements ShuffleMaster<RemoteShuffleDescripto
     return new MemorySize(numBytesForInput + numBytesForOutput);
   }
 
-  @Override
   public void close() throws Exception {
     try {
       jobShuffleIds.clear();
