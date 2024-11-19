@@ -138,7 +138,7 @@ function build_service {
   # Store the command as an array because $MVN variable might have spaces in it.
   # Normal quoting tricks don't work.
   # See: http://mywiki.wooledge.org/BashFAQ/050
-  BUILD_COMMAND=("$MVN" clean package $MVN_DIST_OPT -pl master,worker,cli -am $@)
+  BUILD_COMMAND=("$MVN" clean install $MVN_DIST_OPT -pl master,worker,cli -am $@)
 
   # Actually build the jar
   echo -e "\nBuilding with..."
@@ -189,7 +189,7 @@ function build_spark_client {
   # Store the command as an array because $MVN variable might have spaces in it.
   # Normal quoting tricks don't work.
   # See: http://mywiki.wooledge.org/BashFAQ/050
-  BUILD_COMMAND=("$MVN" clean package $MVN_DIST_OPT -pl :celeborn-client-spark-${SPARK_MAJOR_VERSION}-shaded_$SCALA_VERSION -am $@)
+  BUILD_COMMAND=("$MVN" clean install $MVN_DIST_OPT -pl :celeborn-client-spark-${SPARK_MAJOR_VERSION}-shaded_$SCALA_VERSION -am $@)
 
   # Actually build the jar
   echo -e "\nBuilding with..."
@@ -217,7 +217,7 @@ function build_flink_client {
   # Store the command as an array because $MVN variable might have spaces in it.
   # Normal quoting tricks don't work.
   # See: http://mywiki.wooledge.org/BashFAQ/050
-  BUILD_COMMAND=("$MVN" clean package $MVN_DIST_OPT -pl :celeborn-client-flink-${FLINK_BINARY_VERSION}-shaded_$SCALA_VERSION -am $@)
+  BUILD_COMMAND=("$MVN" clean install $MVN_DIST_OPT -pl :celeborn-client-flink-${FLINK_BINARY_VERSION}-shaded_$SCALA_VERSION -am $@)
 
   # Actually build the jar
   echo -e "\nBuilding with..."
@@ -235,7 +235,7 @@ function build_mr_client {
         | grep -v "INFO" \
         | grep -v "WARNING" \
         | tail -n 1)
-  BUILD_COMMAND=("$MVN" clean package $MVN_DIST_OPT -pl :celeborn-client-mr-shaded_${SCALA_VERSION} -am $@)
+  BUILD_COMMAND=("$MVN" clean install $MVN_DIST_OPT -pl :celeborn-client-mr-shaded_${SCALA_VERSION} -am $@)
 
     # Actually build the jar
     echo -e "\nBuilding with..."
@@ -267,7 +267,7 @@ function sbt_build_service {
   if [[ $@ == *"hadoop-aws"* ]]; then
      SBT_MAVEN_PROFILES="hadoop-aws"
   fi
-  BUILD_COMMAND=("$SBT" clean package)
+  BUILD_COMMAND=("$SBT" clean install)
 
   # Actually build the jar
   echo -e "\nBuilding with..."
@@ -368,7 +368,7 @@ else
     build_flink_client -Pflink-1.20
     build_mr_client -Pmr
   else
-    ## build release package on demand
+    ## build release install on demand
     build_service $@
     echo "build client with $@"
     ENGINE_COUNT=0

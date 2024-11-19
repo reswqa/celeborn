@@ -50,7 +50,7 @@ class JobRecoveryTest extends AnyFunSuite with Logging with MiniClusterFeature
   }
 
   test("flink job with celeborn recovery test") {
-    assumeFlinkVersion()
+//    assumeFlinkVersion()
     val jobGraph =
       jobRecoveryHelper.prepareEnvAndGetJobGraph(celebornMasterPort, "celeborn_rss_recovery_test")
 

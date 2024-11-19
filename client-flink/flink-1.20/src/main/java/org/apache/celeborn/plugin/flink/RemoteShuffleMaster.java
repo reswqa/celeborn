@@ -44,10 +44,14 @@ import org.apache.flink.runtime.shuffle.ShuffleMasterContext;
 import org.apache.flink.runtime.shuffle.ShuffleMasterSnapshot;
 import org.apache.flink.runtime.shuffle.ShuffleMasterSnapshotContext;
 import org.apache.flink.runtime.shuffle.TaskInputsOutputsDescriptor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.celeborn.client.recover.operationlog.OperationLog;
 
 public class RemoteShuffleMaster implements ShuffleMaster<RemoteShuffleDescriptor> {
+
+  private static final Logger LOG = LoggerFactory.getLogger(RemoteShuffleMaster.class);
 
   private final RemoteShuffleMasterDelegation delegation;
 
@@ -129,6 +133,8 @@ public class RemoteShuffleMaster implements ShuffleMaster<RemoteShuffleDescripto
       ShuffleMasterSnapshotContext context) {
     try {
       List<OperationLog> operationLogs = delegation.operationLogManager.readOperationLogs();
+      delegation.operationLogManager.clear();
+      LOG.info("Snapshot Celeborn shuffle state with {} operation logs", operationLogs.size());
       snapshotFuture.complete(new CelebornShuffleMasterSnapshot(operationLogs));
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -146,6 +152,11 @@ public class RemoteShuffleMaster implements ShuffleMaster<RemoteShuffleDescripto
           (CelebornShuffleMasterSnapshot) snapshot;
       operationLogs.addAll(celebornShuffleMasterSnapshot.getOperationLogs());
     }
+
+    LOG.info(
+        "Restore Celeborn shuffle state from {} snapshpts, has {} operation logs",
+        snapshots.size(),
+        operationLogs.size());
 
     if (!operationLogs.isEmpty()) {
       // restore state by operationLogs

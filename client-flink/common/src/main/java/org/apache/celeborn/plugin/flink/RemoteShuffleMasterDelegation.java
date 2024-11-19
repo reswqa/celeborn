@@ -306,7 +306,9 @@ public class RemoteShuffleMasterDelegation implements RecoverableStoreShuffleCon
   void recover(JobID currentJobID) throws IOException {
     shuffleTaskInfo = new ShuffleTaskInfo(operationLogManager);
 
+    // todo: in session mode, should use applicationId in the operation log rather than currentJobID
     celebornAppId = FlinkUtils.toCelebornAppId(lifecycleManagerTimestamp, currentJobID);
+    operationLogManager.writeOperationLog(new AppRegisterOperationLog(celebornAppId));
 
     createLifecycleManager();
     lifecycleManager.initialize();
